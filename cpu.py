@@ -1,8 +1,8 @@
 import pyrtl
 
-i_mem = pyrtl.MemBlock(...)
+i_mem = pyrtl.MemBlock(bitwidth=32, addrwidth=32, name='i_mem')
 d_mem = pyrtl.MemBlock(...)
-rf    = pyrtl.MemBlock(...)
+rf    = pyrtl.MemBlock(bitwidth=32, addrwidth=5, name='rf', max_read_ports=2, max_write_ports=1, asynchronous=True)
 
 if __name__ == '__main__':
 
