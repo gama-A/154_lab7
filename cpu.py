@@ -1,8 +1,71 @@
+# from socket import RDS_CANCEL_SENT_TO
+from turtle import rt
+# import rsa
 import pyrtl
 
-i_mem = pyrtl.MemBlock(bitwidth=32, addrwidth=32, name='i_mem')
-d_mem = pyrtl.MemBlock(...)
+i_mem = pyrtl.MemBlock(bitwidth=32, addrwidth=32, name='i_mem', max_read_ports=1)
+d_mem = pyrtl.MemBlock(bitwidth=32, addrwidth=32, name='d_mem', max_read_ports=1, max_write_ports=1, asynchronous=True)
 rf    = pyrtl.MemBlock(bitwidth=32, addrwidth=5, name='rf', max_read_ports=2, max_write_ports=1, asynchronous=True)
+
+counter = pyrtl.Register(bitwidth=32, name='counter')
+instr = pyrtl.WireVector(bitwidth=32, name='instr')
+
+counter.next <<= counter + 1
+instr <<= i_mem[counter]
+
+op = pyrtl.WireVector(bitwidth=6, name='op')
+rs = pyrtl.WireVector(bitwidth=5, name='rs')
+rt = pyrtl.WireVector(bitwidth=5, name='rt')
+rd = pyrtl.WireVector(bitwidth=5, name='rd')
+sh = pyrtl.WireVector(bitwidth=5, name='sh')
+funct = pyrtl.WireVector(bitwidth=6, name='funct')
+imm = pyrtl.WireVector(bitwidth=16, name='imm')
+address = pyrtl.WireVector(bitwidth=26, name='address')
+
+data0 = pyrtl.WireVector(bitwidth=32, name='data0')
+data1 = pyrtl.WireVector(bitwidth=32, name='data1')
+
+op <<= instr[26:32]
+rs <<= instr[21:26]
+rt <<= instr[16:21]
+rd <<= instr[11:16]
+sh <<= instr[6:11]
+funct <<= instr[0:6]
+imm <<= instr[0:16]
+address <<= instr[0:26]
+
+data0 <<= rf[rs]
+data1 <<= rf[rt]
+
+control_signals = pyrtl.WireVector(bitwidth=12, name='control')
+
+with pyrtl.conditional_assignment:
+   with op == 0:
+      with funct == 0x20:
+         control_signals |= 0x280
+      with funct == 0x24:
+         control_signals |= 0x281
+      with funct == 0x2a:
+         control_signals |= 0x284
+   with op == 0x8:
+      control_signals |= 0x0c0
+   with op == 0xf:
+      control_signals |= 0x0c5
+   with op == 0x23:
+      control_signals |= 0x2a8
+   with op == 0x2b:
+      control_signals |= 0x0b0
+   with op == 0x4:
+      control_signals |= 0x123
+
+alu_op = control_signals[0:3]
+mem_to_reg = control_signals[3:4]
+mem_write = control_signals[4:5]
+alu_src = control_signals[5:7]
+regWrite = control_signals[7:8]
+branch = control_signals[8:9]
+reg_dst = control_signals[9:10]
+
 
 if __name__ == '__main__':
 
