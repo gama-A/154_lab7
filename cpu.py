@@ -1,4 +1,5 @@
 # from socket import RDS_CANCEL_SENT_TO
+from cProfile import label
 from turtle import rt
 # import rsa
 import pyrtl
@@ -10,7 +11,6 @@ rf    = pyrtl.MemBlock(bitwidth=32, addrwidth=5, name='rf', max_read_ports=2, ma
 counter = pyrtl.Register(bitwidth=32, name='counter')
 instr = pyrtl.WireVector(bitwidth=32, name='instr')
 
-counter.next <<= counter + 1
 instr <<= i_mem[counter]
 
 op = pyrtl.WireVector(bitwidth=6, name='op')
@@ -20,8 +20,10 @@ rd = pyrtl.WireVector(bitwidth=5, name='rd')
 sh = pyrtl.WireVector(bitwidth=5, name='sh')
 funct = pyrtl.WireVector(bitwidth=6, name='funct')
 imm = pyrtl.WireVector(bitwidth=16, name='imm')
-address = pyrtl.WireVector(bitwidth=26, name='address')
+address = pyrtl.WireVector(bitwidth=32, name='address')
 
+alu_out = pyrtl.WireVector(bitwidth=32, name='alu_out')
+alu_zero = pyrtl.WireVector(bitwidth=1, name='alu_zero')
 data0 = pyrtl.WireVector(bitwidth=32, name='data0')
 data1 = pyrtl.WireVector(bitwidth=32, name='data1')
 
@@ -32,10 +34,6 @@ rd <<= instr[11:16]
 sh <<= instr[6:11]
 funct <<= instr[0:6]
 imm <<= instr[0:16]
-address <<= instr[0:26]
-
-data0 <<= rf[rs]
-data1 <<= rf[rt]
 
 control_signals = pyrtl.WireVector(bitwidth=12, name='control')
 
@@ -48,9 +46,9 @@ with pyrtl.conditional_assignment:
       with funct == 0x2a:
          control_signals |= 0x284
    with op == 0x8:
-      control_signals |= 0x0c0
+      control_signals |= 0x0a0
    with op == 0xf:
-      control_signals |= 0x0c5
+      control_signals |= 0x0a5
    with op == 0x23:
       control_signals |= 0x2a8
    with op == 0x2b:
@@ -66,6 +64,57 @@ regWrite = control_signals[7:8]
 branch = control_signals[8:9]
 reg_dst = control_signals[9:10]
 
+regDest = pyrtl.WireVector(bitwidth=5, name='regDest')
+
+with pyrtl.conditional_assignment:
+   with reg_dst == 0:
+      regDest |= rt
+   with reg_dst == 1:
+      regDest |= rd
+
+data0 <<= rf[rs]
+data1 <<= rf[regDest]
+
+with pyrtl.conditional_assignment:
+   with alu_src == 0:
+      data1 |= data1
+   with alu_src == 1:
+      with branch == 1:
+         data1 |= data1
+         address |= imm.sign_extended(32)
+      with branch == 0:
+         data1 |= imm.sign_extended(32)
+   with alu_src == 2:
+      data1 |= imm.zero_extended(32)
+
+with pyrtl.conditional_assignment:
+   with alu_op == 0:
+      alu_out |= data0 + data1
+   with alu_op == 1:
+      alu_out |= data0 & data1
+   with alu_op == 2:
+      alu_out |= data0 | data1
+   with alu_op == 3:
+      alu_out |= data0 - data1
+      alu_zero |= alu_out == 0
+   with alu_op == 4:
+      alu_out |= data1 < data0
+   with alu_op == 5:
+      alu_out |= pyrtl.shift_left_logical(data1, sh)
+
+
+with pyrtl.conditional_assignment:
+   with branch == 1:
+      with alu_zero == 1:
+         counter.next |= counter + address + 1
+      with alu_zero == 0:
+         counter.next |= counter + 1
+   with branch == 0:
+      counter.next |= counter + 1
+
+WE = pyrtl.MemBlock.EnabledWrite
+rf[regDest] <<= WE(alu_out, regWrite)
+d_mem[regDest] <<= WE(alu_out, mem_write)
 
 if __name__ == '__main__':
 
