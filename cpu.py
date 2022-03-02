@@ -1,6 +1,7 @@
 # from socket import RDS_CANCEL_SENT_TO
 from cProfile import label
 from turtle import rt
+from unittest import result
 # import rsa
 import pyrtl
 
@@ -50,11 +51,11 @@ with pyrtl.conditional_assignment:
    with op == 0xf:
       control_signals |= 0x0a5
    with op == 0x23:
-      control_signals |= 0x2a8
+      control_signals |= 0x0a8
    with op == 0x2b:
       control_signals |= 0x0b0
    with op == 0x4:
-      control_signals |= 0x123
+      control_signals |= 0x103
 
 alu_op = control_signals[0:3]
 mem_to_reg = control_signals[3:4]
@@ -73,19 +74,16 @@ with pyrtl.conditional_assignment:
       regDest |= rd
 
 data0 <<= rf[rs]
-data1 <<= rf[regDest]
+# data1 <<= rf[regDest]
 
 with pyrtl.conditional_assignment:
    with alu_src == 0:
-      data1 |= data1
+      data1 |= rf[regDest]
    with alu_src == 1:
-      with branch == 1:
-         data1 |= data1
-         address |= imm.sign_extended(32)
-      with branch == 0:
-         data1 |= imm.sign_extended(32)
+      data1 |= imm.sign_extended(32)
    with alu_src == 2:
       data1 |= imm.zero_extended(32)
+
 
 with pyrtl.conditional_assignment:
    with alu_op == 0:
@@ -96,12 +94,13 @@ with pyrtl.conditional_assignment:
       alu_out |= data0 | data1
    with alu_op == 3:
       alu_out |= data0 - data1
-      alu_zero |= alu_out == 0
    with alu_op == 4:
       alu_out |= data1 < data0
    with alu_op == 5:
       alu_out |= pyrtl.shift_left_logical(data1, sh)
 
+alu_zero <<= alu_out == 0 
+address <<= imm.sign_extended(32)
 
 with pyrtl.conditional_assignment:
    with branch == 1:
@@ -112,9 +111,20 @@ with pyrtl.conditional_assignment:
    with branch == 0:
       counter.next |= counter + 1
 
+writeData = pyrtl.WireVector(bitwidth=32, name='writeData')
+writeData <<= d_mem[alu_out]
+
+res = pyrtl.WireVector(bitwidth=32, name='res')
+
+with pyrtl.conditional_assignment:
+   with mem_to_reg == 0:
+      res |= alu_out
+   with mem_to_reg == 1:
+      res |= writeData
+
 WE = pyrtl.MemBlock.EnabledWrite
-rf[regDest] <<= WE(alu_out, regWrite)
-d_mem[regDest] <<= WE(alu_out, mem_write)
+rf[regDest] <<= WE(res, regWrite)
+d_mem[data1] <<= WE(res, mem_write)
 
 if __name__ == '__main__':
 
@@ -181,15 +191,15 @@ if __name__ == '__main__':
     })
 
     # Run for an arbitrarily large number of cycles.
-    for cycle in range(500):
+    for cycle in range(100):
         sim.step({})
 
     # Use render_trace() to debug if your code doesn't work.
     # sim_trace.render_trace()
 
     # You can also print out the register file or memory like so if you want to debug:
-    # print(sim.inspect_mem(d_mem))
-    # print(sim.inspect_mem(rf))
+    print(sim.inspect_mem(d_mem))
+    print(sim.inspect_mem(rf))
 
     # Perform some sanity checks to see if your program worked correctly
     assert(sim.inspect_mem(d_mem)[0] == 10)
