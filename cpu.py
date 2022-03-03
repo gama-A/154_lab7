@@ -1,5 +1,4 @@
 # from socket import RDS_CANCEL_SENT_TO
-from turtle import rt
 # import rsa
 import pyrtl
 
