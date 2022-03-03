@@ -61,9 +61,10 @@ alu_op = control_signals[0:3]
 mem_to_reg = control_signals[3:4]
 mem_write = control_signals[4:5]
 alu_src = control_signals[5:7]
-regWrite = control_signals[7:8]
+# regWrite = control_signals[7:8]
 branch = control_signals[8:9]
 reg_dst = control_signals[9:10]
+regWrite = pyrtl.WireVector(bitwidth=1, name='regWrite')
 
 regDest = pyrtl.WireVector(bitwidth=5, name='regDest')
 
@@ -124,6 +125,12 @@ with pyrtl.conditional_assignment:
       res |= alu_out
    with mem_to_reg == 1:
       res |= readData
+
+with pyrtl.conditional_assignment:
+   with regDest == 0:
+      regWrite |= 0
+   with regDest != 0:
+      regWrite |= control_signals[7:8]
 
 WE = pyrtl.MemBlock.EnabledWrite
 rf[regDest] <<= WE(res, regWrite)
