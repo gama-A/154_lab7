@@ -74,7 +74,7 @@ with pyrtl.conditional_assignment:
       regDest |= rd
 
 data0 <<= rf[rs]
-data1 <<= rf[regDest]
+data1 <<= rf[rt]
 
 with pyrtl.conditional_assignment:
    with alu_src == 0:
@@ -86,6 +86,8 @@ with pyrtl.conditional_assignment:
 
 
 with pyrtl.conditional_assignment:
+   with regDest == 0:
+      alu_out |= 0
    with alu_op == 0:
       alu_out |= data0 + data_1
    with alu_op == 1:
@@ -95,7 +97,8 @@ with pyrtl.conditional_assignment:
    with alu_op == 3:
       alu_out |= data0 - data_1
    with alu_op == 4:
-      alu_out |= pyrtl.signed_lt(data0, data_1)
+      alu_out |= pyrtl.signed_lt(data1, data0)
+      # alu_out |= data1 < data0
    with alu_op == 5:
       alu_out |= pyrtl.shift_left_logical(data_1, pyrtl.Const(16))
 
@@ -121,8 +124,6 @@ with pyrtl.conditional_assignment:
       res |= alu_out
    with mem_to_reg == 1:
       res |= readData
-   with data1 == 0:
-      res |= 0
 
 WE = pyrtl.MemBlock.EnabledWrite
 rf[regDest] <<= WE(res, regWrite)
