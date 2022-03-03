@@ -98,7 +98,7 @@ with pyrtl.conditional_assignment:
    with alu_op == 3:
       alu_out |= data0 - data_1
    with alu_op == 4:
-      alu_out |= pyrtl.signed_lt(data1, data0)
+      alu_out |= pyrtl.signed_lt(data0, data1)
       # alu_out |= data1 < data0
    with alu_op == 5:
       alu_out |= pyrtl.shift_left_logical(data_1, pyrtl.Const(16))
