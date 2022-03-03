@@ -27,6 +27,7 @@ alu_out = pyrtl.WireVector(bitwidth=32, name='alu_out')
 alu_zero = pyrtl.WireVector(bitwidth=1, name='alu_zero')
 data0 = pyrtl.WireVector(bitwidth=32, name='data0')
 data1 = pyrtl.WireVector(bitwidth=32, name='data1')
+data_1 = pyrtl.WireVector(bitwidth=32, name='data_1')
 
 op <<= instr[26:32]
 rs <<= instr[21:26]
@@ -49,11 +50,13 @@ with pyrtl.conditional_assignment:
    with op == 0x8:
       control_signals |= 0x0a0
    with op == 0xf:
-      control_signals |= 0x0a5
+      control_signals |= 0x0c5
+   with op == 0xd:
+      control_signals |= 0x0c2
    with op == 0x23:
       control_signals |= 0x0a8
    with op == 0x2b:
-      control_signals |= 0x0b0
+      control_signals |= 0x030
    with op == 0x4:
       control_signals |= 0x103
 
@@ -74,33 +77,36 @@ with pyrtl.conditional_assignment:
       regDest |= rd
 
 data0 <<= rf[rs]
-# data1 <<= rf[regDest]
+data1 <<= rf[regDest]
 
 with pyrtl.conditional_assignment:
    with alu_src == 0:
-      data1 |= rf[regDest]
+      data_1 |= data1
    with alu_src == 1:
-      data1 |= imm.sign_extended(32)
+      data_1 |= imm.sign_extended(32)
    with alu_src == 2:
-      data1 |= imm.zero_extended(32)
+      data_1 |= imm.zero_extended(32)
 
 
 with pyrtl.conditional_assignment:
    with alu_op == 0:
-      alu_out |= data0 + data1
+      alu_out |= data0 + data_1
    with alu_op == 1:
-      alu_out |= data0 & data1
+      alu_out |= data0 & data_1
    with alu_op == 2:
-      alu_out |= data0 | data1
+      alu_out |= data0 | data_1
    with alu_op == 3:
-      alu_out |= data0 - data1
+      alu_out |= data0 - data_1
    with alu_op == 4:
-      alu_out |= data1 < data0
+      alu_out |= pyrtl.signed_lt(data0, data_1)
    with alu_op == 5:
-      alu_out |= pyrtl.shift_left_logical(data1, sh)
+      alu_out |= pyrtl.shift_left_logical(data_1, pyrtl.Const(16))
 
 alu_zero <<= alu_out == 0 
 address <<= imm.sign_extended(32)
+
+readData = pyrtl.WireVector(bitwidth=32, name='writeData')
+readData <<= d_mem[alu_out]
 
 with pyrtl.conditional_assignment:
    with branch == 1:
@@ -111,20 +117,17 @@ with pyrtl.conditional_assignment:
    with branch == 0:
       counter.next |= counter + 1
 
-writeData = pyrtl.WireVector(bitwidth=32, name='writeData')
-writeData <<= d_mem[alu_out]
-
 res = pyrtl.WireVector(bitwidth=32, name='res')
 
 with pyrtl.conditional_assignment:
    with mem_to_reg == 0:
       res |= alu_out
    with mem_to_reg == 1:
-      res |= writeData
+      res |= readData
 
 WE = pyrtl.MemBlock.EnabledWrite
 rf[regDest] <<= WE(res, regWrite)
-d_mem[data1] <<= WE(res, mem_write)
+d_mem[alu_out] <<= WE(data1, mem_write)
 
 if __name__ == '__main__':
 
@@ -191,7 +194,7 @@ if __name__ == '__main__':
     })
 
     # Run for an arbitrarily large number of cycles.
-    for cycle in range(100):
+    for cycle in range(500):
         sim.step({})
 
     # Use render_trace() to debug if your code doesn't work.
