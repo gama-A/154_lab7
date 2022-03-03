@@ -121,6 +121,8 @@ with pyrtl.conditional_assignment:
       res |= alu_out
    with mem_to_reg == 1:
       res |= readData
+   with data1 == 0:
+      res |= 0
 
 WE = pyrtl.MemBlock.EnabledWrite
 rf[regDest] <<= WE(res, regWrite)
